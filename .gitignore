@@ -1,0 +1,30 @@
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+*.so
+*.pyc
+*.egg-info/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Data and results
+data/
+results/
+_garbage/
+*.csv
+*.xlsx
+*.jpg
+*.png
+
+# VS Code files
+.vscode/
+
+# PyCharm files (or other IDE)
+.idea/
+
+# Git merge/rebase backup files
+*.orig
+
+# OS generated files
+.DS_Store
