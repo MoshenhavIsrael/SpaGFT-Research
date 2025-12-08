@@ -2,13 +2,13 @@ import os
 import shutil
 from huggingface_hub import hf_hub_download, list_repo_files
 
-def download_slice_data(slice_name, tech, output_dir):
+def download_slide_data(slide_name, tech, output_dir):
     """
-    Downloads gene expression, coordinates, and image data for a specific slice
+    Downloads gene expression, coordinates, and image data for a specific slide
     from the STimage-1K4M dataset and saves them to a target directory.
 
     Args:
-        slice_name (str): The unique identifier of the slice (e.g., '151673' or 'GSM4284316').
+        slide_name (str): The unique identifier of the slide (e.g., '151673' or 'GSM4284316').
         tech (str): The technology used ('Visium', 'ST', or 'VisiumHD').
         output_dir (str): The local path where files should be saved.
     """
@@ -19,7 +19,7 @@ def download_slice_data(slice_name, tech, output_dir):
 
     # Create the output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
-    print(f"Processing slice: {slice_name} | Technology: {tech}")
+    print(f"Processing slide: {slide_name} | Technology: {tech}")
 
     # List of file types to download with their specific folder paths and likely extensions
     # Note: Filename patterns might vary slightly based on the specific dataset upload structure.
@@ -27,25 +27,25 @@ def download_slice_data(slice_name, tech, output_dir):
     files_to_download = [
         {
             "type": "Gene Expression",
-            "repo_path": f"{tech}/gene_exp/{slice_name}_count.csv",
-            "save_name": f"gene_exp/{slice_name}_count.csv"
+            "repo_path": f"{tech}/gene_exp/{slide_name}_count.csv",
+            "save_name": f"gene_exp/{slide_name}_count.csv"
         },
         {
             "type": "Coordinates",
             # Often coordinate files have a '_coord' suffix or similar. 
-            # If this fails, check if the dataset uses just '{slice_name}.csv' in the coord folder.
-            "repo_path": f"{tech}/coord/{slice_name}_coord.csv", 
-            "save_name": f"coord/{slice_name}_coord.csv"
+            # If this fails, check if the dataset uses just '{slide_name}.csv' in the coord folder.
+            "repo_path": f"{tech}/coord/{slide_name}_coord.csv", 
+            "save_name": f"coord/{slide_name}_coord.csv"
         },
         {
             "type": "Image",
-            "repo_path": f"{tech}/image/{slice_name}.png", # Defaulting to .jpg, might be .tif or .png
-            "save_name": f"image/{slice_name}_image.png"
+            "repo_path": f"{tech}/image/{slide_name}.png", # Defaulting to .jpg, might be .tif or .png
+            "save_name": f"image/{slide_name}_image.png"
         }
     ]
 
     # Flag to prevent listing files multiple times if multiple downloads fail
-    has_listed_slice = False
+    has_listed_slide = False
 
     for file_info in files_to_download:
         try:
@@ -62,15 +62,15 @@ def download_slice_data(slice_name, tech, output_dir):
             destination_path = os.path.join(output_dir, file_info['save_name'])
             shutil.copy(cached_path, destination_path)
             
-            has_listed_slice = True
+            has_listed_slide = True
             print(f"Successfully saved to: {destination_path}")
 
         except Exception as e:
             print(f"Error downloading {file_info['type']} ({file_info['repo_path']}): {e}")
             
             # Only list available files once, and only if the error suggests the file wasn't found
-            if not has_listed_slice:
-                print(f"\n--- ID '{slice_name}' not found. Listing available files in '{tech}/{file_info['type']}' ---")
+            if not has_listed_slide:
+                print(f"\n--- ID '{slide_name}' not found. Listing available files in '{tech}/{file_info['type']}' ---")
                 try:
                     # Get the directory prefix (e.g., 'Visium/gene_exp')
                     dir_prefix = os.path.dirname(file_info['repo_path'])
@@ -96,13 +96,13 @@ def download_slice_data(slice_name, tech, output_dir):
                 print("------------------------------------------------------------------\n")
                 
 
-    print(f"\n--- Download process for {slice_name} completed ---")
+    print(f"\n--- Download process for {slide_name} completed ---")
 
 # --- Example Usage ---
 if __name__ == "__main__":
     # Example parameters (Replace these with the actual IDs from the paper)
-    my_slice = "Human_Breast_Andersson_10142021_ST_A1" 
+    my_slide = "Human_Breast_Andersson_10142021_ST_A1" 
     my_tech = "ST"       
-    my_output_folder = r"C:/mnt/data/sp_methods/data/stimage_data_downloads"
+    my_output_folder = r"C:/mnt/data/SpaGFT-Research/data"
 
-    download_slice_data(slice_name=my_slice, tech=my_tech, output_dir=my_output_folder)
+    download_slide_data(slide_name=my_slide, tech=my_tech, output_dir=my_output_folder)

@@ -34,7 +34,8 @@ def list_available_methods():
 
 def get_svg_list(slide_name, method, output_dir=None):
     """
-    Downloads the SVG (Spatially Variable Genes) list for a specific slide and method.
+    Checks if SVG (Spatially Variable Genes) list for a specific slide and method 
+    exist in 'results/atlas_results'. If not, downloads it.
     
     Args:
         slide_name (str): The slide identifier (e.g., '151673').
@@ -44,6 +45,13 @@ def get_svg_list(slide_name, method, output_dir=None):
     Returns:
         pd.DataFrame: A table containing the genes and their ranking, or None if failed.
     """
+    # Check if the file exists locally first
+    if output_dir:
+        local_file_path = os.path.join(output_dir, f"{slide_name}_{method}_SVG.csv")
+        if os.path.exists(local_file_path):
+            print(f"Loading SVG list from local file: {local_file_path}")
+            return pd.read_csv(local_file_path)
+    
     # Construct the file path within the repository based on the pattern found in app.R
     # Pattern: SVG/{method}/{slide_name}_organized.csv
     repo_filename = f"SVG/{method}/{slide_name}_organized.csv"
@@ -65,9 +73,8 @@ def get_svg_list(slide_name, method, output_dir=None):
         # Save locally if requested
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
-            local_save_path = os.path.join(output_dir, f"{slide_name}_{method}_SVG.csv")
-            df.to_csv(local_save_path, index=False)
-            print(f"Saved local copy to: {local_save_path}")
+            df.to_csv(local_file_path, index=False)
+            print(f"Saved local copy to: {local_file_path}")
             
         return df
 
