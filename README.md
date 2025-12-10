@@ -32,16 +32,21 @@ This project is designed to work in tandem with a modified fork of the SpaGFT li
     cd SpaGFT-Research
     ```
 
-2.  **Clone and Install the SpaGFT Fork** (The library):
+2.  **Clone and Install the SpaGFT Fork** (The library) **and other requirements**:
     It is recommended to install the library in **editable mode** so changes to the algorithm are immediately reflected in the notebooks.
 
     ```bash
+    conda create --name m_spagft_env
+    conda activate m_spagft_env
     # Go to your workspace folder (outside of SpaGFT-Research)
     cd ..
+    # Install SpaGFT fork
     git clone [https://github.com/MoshenhavIsrael/SpaGFT.git](https://github.com/MoshenhavIsrael/SpaGFT.git)
     cd SpaGFT
     pip install -e .
-    ```
+    # Install another requirements
+    pip install huggingface_hub
+    ```   
 
 ### Running the Analysis
 
