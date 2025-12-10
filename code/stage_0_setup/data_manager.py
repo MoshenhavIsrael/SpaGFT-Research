@@ -104,10 +104,9 @@ def load_or_download_data(slide_id, tech, include_z_axis=False):
         adata = sc.AnnData(X=counts_df)
         
         # 5. Add spatial coordinates to .obs and .obsm
-        # SpaGFT often looks for ['array_row', 'array_col'] in obs or obsm
-        # We assign the whole coords dataframe to obs to be safe
-        adata.obs = adata.obs.join(coords_df)
-        
+        adata.obs['array_row'] = coords_df.iloc[:, 0]
+        adata.obs['array_col'] = coords_df.iloc[:, 1]
+        if coords_df.shape[1] > 2: adata.obs['array_z'] = coords_df.iloc[:, 2]        
         # Also standard Scanpy location
         # Assuming the coord file has columns 0 and 1 as x, y or similar
         if coords_df.shape[1] >= 2:
@@ -122,6 +121,34 @@ def load_or_download_data(slide_id, tech, include_z_axis=False):
     except Exception as e:
         print(f"[ERROR] Failed to construct AnnData for {slide_id}: {e}")
         return None
+
+def preprocess_adata(adata, min_cells=10, normalize=True, log_transform=True):
+    """
+    Preprocesses the AnnData object with filtering, normalization, and log transformation.
+    
+    Args:
+        adata (AnnData): The input AnnData object.
+        min_cells (int): Minimum number of cells a gene must be expressed in to be kept.
+        normalize (bool): Whether to normalize total counts per cell.
+        log_transform (bool): Whether to apply log1p transformation.
+    
+    Returns:
+        AnnData: The preprocessed AnnData object.
+    """
+    # 1. Filter Genes
+    if min_cells > 0:
+        sc.pp.filter_genes(adata, min_cells=min_cells)
+    
+    # 2. Normalize
+    if normalize:
+        sc.pp.normalize_total(adata, inplace=True)
+    
+    # 3. Log Transform
+    if log_transform:
+        sc.pp.log1p(adata)
+    
+    return adata
+  
 
 def get_reference_svgs(slide_id, method_name, output_dir=ATLAS_RESULTS_DIR, top_n=100):
     """

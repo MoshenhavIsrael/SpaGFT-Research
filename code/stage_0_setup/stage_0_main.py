@@ -7,7 +7,7 @@ import scanpy as sc
 
 # Adding the current directory to sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from data_manager import ensure_directories, load_or_download_data, get_reference_svgs
+from data_manager import ensure_directories, load_or_download_data, preprocess_adata, get_reference_svgs
 from evaluation import calculate_jaccard_index, run_spagft_local
 
 # --- Default Configuration (Constants) ---
@@ -31,10 +31,11 @@ def run_stage_0_pipeline(slide_id=DEFAULT_SLIDE_ID,
     # 1. Setup
     ensure_directories()
     
-    # 2. Get Data
+    # 2. Get Data, Construct AnnData and Preprocess
     adata = load_or_download_data(slide_id, tech)
     if adata is None:
         return None
+    adata = preprocess_adata(adata)
 
     # 3. Get Reference Results
     reference_genes = get_reference_svgs(slide_id, method_name, top_n=top_n)
@@ -44,12 +45,12 @@ def run_stage_0_pipeline(slide_id=DEFAULT_SLIDE_ID,
 
     # 4. Run Local SpaGFT
     # We pass the full adata, and slicing happens here or inside the function
-    local_genes = run_spagft_local(adata)[:top_n]
+    local_genes = run_spagft_local(adata).index.tolist()[:top_n]
     
     # 5. Compare Results
     metrics = {}
     if local_genes:
-        jaccard = calculate_jaccard_index(reference_genes, local_genes)
+        jaccard, overlap = calculate_jaccard_index(reference_genes, local_genes)
         overlap_count = len(set(reference_genes).intersection(set(local_genes)))
         
         metrics = {
