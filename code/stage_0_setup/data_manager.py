@@ -135,6 +135,7 @@ def preprocess_adata(adata, min_cells=10, normalize=True, log_transform=True):
     Returns:
         AnnData: The preprocessed AnnData object.
     """
+    print("\n[INFO] Preprocessing AnnData...")
     # 1. Filter Genes
     if min_cells > 0:
         sc.pp.filter_genes(adata, min_cells=min_cells)
@@ -147,6 +148,8 @@ def preprocess_adata(adata, min_cells=10, normalize=True, log_transform=True):
     if log_transform:
         sc.pp.log1p(adata)
     
+    print("[INFO] Preprocessing complete.")
+
     return adata
   
 

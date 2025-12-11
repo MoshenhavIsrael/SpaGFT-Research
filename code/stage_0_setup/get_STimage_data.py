@@ -1,6 +1,9 @@
 import os
 import shutil
-from huggingface_hub import hf_hub_download, list_repo_files
+try:
+    from huggingface_hub import hf_hub_download, list_repo_files
+except ImportError:
+    raise ImportError("Please install the 'huggingface_hub' package to use this module.")
 
 def download_slide_data(slide_name, tech, output_dir):
     """
