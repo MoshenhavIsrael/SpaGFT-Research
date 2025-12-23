@@ -8,6 +8,7 @@ import anndata as ad
 # Import helper functions from the same directory
 from get_STimage_data import download_slide_data
 from STimage_atlas_client import get_svg_list
+from transform_Exseq_data import load_exseq_puncta_data
 
 # --- Path Configurations ---
 # Assuming structure: SpaGFT-Research/code/stage_0_setup/data_manager.py
@@ -66,14 +67,16 @@ def load_or_download_data(slide_id, tech, include_z_axis=False):
     # Define expected file paths based on naming conventions
     count_file = GENE_EXP_DIR / f"{slide_id}_count.csv"
     coord_file = COORD_DIR / f"{slide_id}_coord.csv"
-    image_file = IMAGE_DIR / f"{slide_id}_image.png"
 
     # Check existence of all required files
-    data_missing = not (count_file.exists() and coord_file.exists() and image_file.exists())
+    data_missing = not (count_file.exists() and coord_file.exists())
 
     if data_missing:
-        print(f"\n[INFO] Data missing for {slide_id}. Downloading...")
-        download_slide_data(slide_name=slide_id, tech=tech, output_dir=str(DATA_DIR))
+        if tech == 'exseq':
+            load_exseq_puncta_data(tissue_name=slide_id, data_path=str(DATA_DIR))
+        else:
+            print(f"\n[INFO] Data missing for {slide_id}. Downloading...")
+            download_slide_data(slide_name=slide_id, tech=tech, output_dir=str(DATA_DIR))
 
     # --- Construct AnnData from CSVs ---
     # SpaGFT requires specific spatial info in obs/obsm
@@ -106,7 +109,7 @@ def load_or_download_data(slide_id, tech, include_z_axis=False):
         # 5. Add spatial coordinates to .obs and .obsm
         adata.obs['array_row'] = coords_df.iloc[:, 0]
         adata.obs['array_col'] = coords_df.iloc[:, 1]
-        if coords_df.shape[1] > 2: adata.obs['array_z'] = coords_df.iloc[:, 2]        
+        if include_z_axis and coords_df.shape[1] > 2: adata.obs['array_z'] = coords_df.iloc[:, 2]        
         # Also standard Scanpy location
         # Assuming the coord file has columns 0 and 1 as x, y or similar
         if coords_df.shape[1] >= 2:
