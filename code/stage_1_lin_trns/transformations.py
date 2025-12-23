@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import scanpy as sc
-from typing import Union, List
+from typing import Union, List, Tuple
 
 def apply_rotation_matrix(coords: np.ndarray, angle_degrees: float) -> np.ndarray:
     """
@@ -33,7 +33,7 @@ def apply_scaling(coords: np.ndarray, scaling_factor: float) -> np.ndarray:
     """Applies uniform scaling to coordinates."""
     return coords * scaling_factor
 
-def apply_translation(coords: np.ndarray, translation: Union[float, List[float], np.ndarray]) -> np.ndarray:
+def apply_translation(coords: np.ndarray, translation: Union[float, List[float], Tuple[float, ...]]) -> np.ndarray:
     """Applies linear translation (scalar or vector)."""
     # If scalar, numpy broadcasting handles it (adds to all axes)
     if isinstance(translation, (int, float)):
@@ -53,7 +53,7 @@ def apply_translation(coords: np.ndarray, translation: Union[float, List[float],
 
 def transform_adata(adata: sc.AnnData, 
                     angle: float = 0, 
-                    translation: Union[float, List[float]] = 0,
+                    translation: Union[float, List[float], Tuple[float, ...]] = 0,
                     scaling: float = 1.0,                      
                     flip: bool = False,                        
                     spatial_key: Union[str, List[str]] = "spatial") -> sc.AnnData:

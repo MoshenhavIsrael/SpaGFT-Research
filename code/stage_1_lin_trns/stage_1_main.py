@@ -9,6 +9,7 @@ import os
 
 # Adding the current directory and its parent to sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../stage_0_setup")
 
 # Import local modules
@@ -38,7 +39,7 @@ def generate_default_scenarios():
     scenarios.append({'name': 'Scale x1.2', 'angle': 0, 'scaling': 1.2, 'translation': 0, 'flip': False})
     
     # 3. Translation (Shift)
-    scenarios.append({'name': 'Shift X+10', 'angle': 0, 'scaling': 1.0, 'translation': [10, 0], 'flip': False})
+    scenarios.append({'name': 'Shift X+10', 'angle': 0, 'scaling': 1.0, 'translation': (10, 0), 'flip': False})
     
     # 4. Flip
     scenarios.append({'name': 'Flip X', 'angle': 0, 'scaling': 1.0, 'translation': 0, 'flip': True})
@@ -148,6 +149,10 @@ def run_stability_test(slide_id=DEFAULT_SLIDE_ID,
         
         # Store Result
         res_entry = config.copy()
+        # Convert translation list to tuple so it's hashable for pandas
+        trans_val = config.get('translation', 0)
+        if isinstance(trans_val, list):
+            res_entry['translation'] = tuple(trans_val)
         res_entry['Jaccard'] = jaccard
         res_entry['Spearman'] = spearman_val
         res_entry['Overlap'] = overlap_count
@@ -157,16 +162,17 @@ def run_stability_test(slide_id=DEFAULT_SLIDE_ID,
     df_results = pd.DataFrame(results)
     
     # Plotting
-    plot_results(df_results, top_n)
+    # plot_results(df_results, top_n)
     
     if save_results:
         # Merge with former results (The new results in the head; Avoid duplicates)
         if 'former_results' in locals():
             df_results = pd.concat([df_results, former_results], ignore_index=True)
+            df_results['translation'] = df_results['translation'].astype(str)
             df_results = df_results.drop_duplicates(
-                subset=['angle', 'scaling', 'translation', 'flip'],
+                subset=['name', 'angle', 'scaling', 'translation', 'flip'], 
                 keep='first'
-            )
+                )
         # Save to CSV
         df_results.to_csv(results_path, index=False)
 
@@ -200,4 +206,6 @@ def plot_results(df_results, top_n):
 if __name__ == "__main__":
     # Example usage
     # You can define custom scenarios here or use the defaults
-    metrics = run_stability_test(spatial_key="spatial") # or ['array_row', 'array_col']
+    metrics = run_stability_test(slide_id="fem3_5x_E7_A_left",
+                      tech = "exseq",
+                      save_results=True)

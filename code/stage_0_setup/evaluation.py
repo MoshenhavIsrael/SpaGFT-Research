@@ -24,7 +24,8 @@ def calculate_jaccard_index(list1, list2):
 
 def run_spagft_local(adata):
     """
-    PLACEHOLDER: This function will run your local SpaGFT implementation.
+    Runs the local SpaGFT implementation on the provided AnnData object.
+     Returns a DataFrame with SpaGFT results.
     """
     print("\n[INFO] Running local SpaGFT implementation...")
     
@@ -38,7 +39,7 @@ def run_spagft_local(adata):
     if 'array_z' in adata_local.obs.columns:
         coord_columns.append('array_z') 
     
-    # We open os.devnull (the "black hole" of the OS) and redirect stdout there
+    # Open os.devnull and redirect stdout
     with open(os.devnull, 'w') as fnull:
         with redirect_stdout(fnull):
             try:
@@ -55,9 +56,8 @@ def run_spagft_local(adata):
                                         filter_peaks=True,
                                         S=6)
                 # S determines the  sensitivity of kneedle algorithm
+
             except Exception as e:
-                # If error happens, we want to see it, so we re-raise
-                # The 'with' block exits, so stdout is restored before raising
                 raise e
     
     
