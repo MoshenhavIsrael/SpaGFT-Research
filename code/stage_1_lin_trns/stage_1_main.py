@@ -1,3 +1,4 @@
+from contextlib import redirect_stdout
 import pandas as pd
 import numpy as np
 import scanpy as sc
@@ -16,7 +17,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../stage_0_setup"
 from transformations import transform_adata
 # Importing from stage_0 to reuse loading logic 
 from stage_0_setup.evaluation import run_spagft_local, calculate_jaccard_index
-from stage_0_setup.data_manager import load_or_download_data, preprocess_adata, RESULTS_DIR
+from stage_0_setup.data_manager import load_or_download_data, preprocess_adata, RESULTS_DIR, set_local_svg_path
 
 # --- Default Configuration ---
 DEFAULT_SLIDE_ID = "Human_Breast_Andersson_10142021_ST_A1"
@@ -51,10 +52,27 @@ def run_stability_test(slide_id=DEFAULT_SLIDE_ID,
                        scenarios=None,
                        spatial_key="spatial",
                        top_n=DEFAULT_TOP_N,
-                       save_results=False):
+                       save_results=False,
+                       restrict_logs=True):
     """
     Runs a comprehensive stability test suite applying various linear transformations.
     """
+    if restrict_logs:
+        # Open os.devnull and redirect stdout
+        with open(os.devnull, 'w') as fnull:
+            with redirect_stdout(fnull):
+                try:
+                    func_output = run_stability_test(slide_id=slide_id,
+                                       tech=tech,
+                                       scenarios=scenarios,
+                                       spatial_key=spatial_key,
+                                       top_n=top_n,
+                                       save_results=save_results,
+                                       restrict_logs=False)
+                    return func_output
+                except Exception as e:
+                    raise e
+
     if scenarios is None:
         scenarios = generate_default_scenarios()
         
@@ -67,9 +85,15 @@ def run_stability_test(slide_id=DEFAULT_SLIDE_ID,
     adata_orig = preprocess_adata(adata_orig)
     
     # 2. Run Baseline SpaGFT (0 degrees, no transform)
-    print("\n--- Running Baseline (Original Data) ---")
-    # Note: run_spagft_local returns a DataFrame sorted by rank/score
-    svg_orig_df = run_spagft_local(adata_orig)
+    if save_results:
+        baseline_svg_file = set_local_svg_path(slide_id, "SpaGFT")
+        if baseline_svg_file.exists():
+            print(f"[INFO] Loading baseline SpaGFT results from {baseline_svg_file}.")
+            svg_orig_df = pd.read_csv(baseline_svg_file, index_col=0)
+
+    if 'svg_orig_df' not in locals():
+        print("\n--- Running Baseline (Original Data) ---")
+        svg_orig_df = run_spagft_local(adata_orig)
     
     # Extract baseline metrics
     top_genes_orig = set(svg_orig_df.index[:top_n])

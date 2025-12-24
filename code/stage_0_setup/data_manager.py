@@ -180,3 +180,14 @@ def get_reference_svgs(slide_id, method_name, output_dir=ATLAS_RESULTS_DIR, top_
     else:
         print(f"[WARNING] Could not retrieve reference SVGs for {slide_id}.")
         return []
+    
+
+def set_local_svg_path(slide_id, method_name= "spagft", local_svg_dir=RESULTS_DIR / "local_svgs"):
+    """
+    Sets the local path for storing/finding local SVG results for a given slide.
+    """
+    if not local_svg_dir.exists():
+        local_svg_dir.mkdir(parents=True, exist_ok=True)
+
+    result_file = local_svg_dir / f"{method_name}_{slide_id}_svgs.csv"
+    return result_file
