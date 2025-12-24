@@ -28,20 +28,25 @@ This project is designed to work in tandem with a modified fork of the SpaGFT li
 
 1.  **Clone this repository** (The analysis workflows):
     ```bash
-    git clone [https://github.com/MoshenhavIsrael/SpaGFT-Research.git](https://github.com/MoshenhavIsrael/SpaGFT-Research.git)
+    git clone https://github.com/MoshenhavIsrael/SpaGFT-Research.git
     cd SpaGFT-Research
     ```
 
-2.  **Clone and Install the SpaGFT Fork** (The library):
-    It is recommended to install the library in **editable mode** so changes to the algorithm are immediately reflected in the notebooks.
+2.  **Clone and Install the SpaGFT Fork** (The library) **and other requirements**:
+    The dependencies of SpaGFT wouldn't be solved on all python versions, so the recomendation is to install it in a new environment of python 3.8.  It is recommended to install the library in **editable mode** so changes to the algorithm are immediately reflected in the notebooks.
 
     ```bash
+    conda create -n m_spagft_env python==3.8.0
+    conda activate m_spagft_env
     # Go to your workspace folder (outside of SpaGFT-Research)
     cd ..
-    git clone [https://github.com/MoshenhavIsrael/SpaGFT.git](https://github.com/MoshenhavIsrael/SpaGFT.git)
+    # Install SpaGFT fork
+    git clone https://github.com/MoshenhavIsrael/SpaGFT.git
     cd SpaGFT
     pip install -e .
-    ```
+    # Install another requirements
+    pip install huggingface_hub
+    ```   
 
 ### Running the Analysis
 
