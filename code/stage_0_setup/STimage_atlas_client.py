@@ -87,7 +87,10 @@ def get_svg_list(slide_name, method, output_dir=None):
 if __name__ == "__main__":
     # 1. First, check which methods are available to ensure correct spelling (e.g., SpaGFT)
     methods = list_available_methods()
-    
+    print("\nAvailable Methods in the Atlas:")
+    for m in methods:
+        print(f" - {m}")
+        
     # 2. Suppose we want SpaGFT data for a specific slide
     target_slide = "Human_Breast_Andersson_10142021_ST_A1" 
     target_method = "SpaGFT" # Ensure this matches one of the printed methods
