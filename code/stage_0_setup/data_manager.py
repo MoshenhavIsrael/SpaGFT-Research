@@ -24,6 +24,8 @@ IMAGE_DIR = DATA_DIR / "image"
 # Results Directories 
 RESULTS_DIR = PROJECT_ROOT / "results"
 ATLAS_RESULTS_DIR = RESULTS_DIR / "atlas_results"
+SVG_RESULTS_DIR = RESULTS_DIR / "svg_results"
+STABILITY_RESULTS_DIR = RESULTS_DIR / "stability_results"
 
 def ensure_directories():
     """
@@ -36,6 +38,8 @@ def ensure_directories():
     │   └── image/
     └── results/
         └── atlas_results/
+        └── svg_results/
+        └── stability_results/
     """
     dirs_to_create = [
         DATA_DIR, 
@@ -43,7 +47,9 @@ def ensure_directories():
         COORD_DIR, 
         IMAGE_DIR, 
         RESULTS_DIR, 
-        ATLAS_RESULTS_DIR
+        ATLAS_RESULTS_DIR,
+        SVG_RESULTS_DIR,
+        STABILITY_RESULTS_DIR
     ]
     
     for d in dirs_to_create:
@@ -156,38 +162,36 @@ def preprocess_adata(adata, min_cells=10, normalize=True, log_transform=True):
     return adata
   
 
-def get_reference_svgs(slide_id, method_name, output_dir=ATLAS_RESULTS_DIR, top_n=100):
+def get_reference_svgs(slide_id, methods_list, output_dir=ATLAS_RESULTS_DIR, top_n=100):
     """
-    Fetches the SVG list from the Atlas (reference).
-    Returns a list of the top 100 genes.
+    Fetches the SVG list from the Atlas (reference) for a list of methods.
+    Returns a dictionary: { 'method_name': [list_of_genes], ... }
     """
-    print(f"\n[INFO] Fetching reference SVG list for {method_name}...")
+    reference_results = {}
     
-    # We pass the directory path as string as per your example usage
-    df = get_svg_list(slide_name=slide_id, method=method_name, output_dir=str(output_dir))
-    
-    if df is not None and not df.empty:
-        # Assuming the dataframe has the gene names in the index or a specific column.
+    # Support single string input just in case
+    if isinstance(methods_list, str):
+        methods_list = [methods_list]
+
+    for method_name in methods_list:
+        print(f"[INFO] Fetching reference SVG list for {method_name}...")
         
-        # If there is a rank column, sort by it, otherwise assume order is rank.
-        if 'rank' in df.columns:
-            df = df.sort_values('rank')
+        # Query the SVG atlas for the specific slide and method
+        df = get_svg_list(slide_name=slide_id, method=method_name, output_dir=str(output_dir))
+        
+        if df is not None and not df.empty:
+            # Sort by rank if available
+            if '.rank_index' in df.columns:
+                df = df.sort_values('.rank_index', ascending=True)
+                
+            # Extract gene names
+            # Assuming the dataframe has the gene names in the index or the first column.
+            top_genes = df.index.tolist()[:top_n] if df.index.name else df.iloc[:top_n, 0].tolist()
             
-        top_genes = df.index.tolist()[:top_n] if df.index.name else df.iloc[:top_n, 0].tolist()
-        
-        print(f"[SUCCESS] Retrieved {len(top_genes)} reference SVGs.")
-        return top_genes
-    else:
-        print(f"[WARNING] Could not retrieve reference SVGs for {slide_id}.")
-        return []
-    
-
-def set_local_svg_path(slide_id, method_name= "spagft", local_svg_dir=RESULTS_DIR / "local_svgs"):
-    """
-    Sets the local path for storing/finding local SVG results for a given slide.
-    """
-    if not local_svg_dir.exists():
-        local_svg_dir.mkdir(parents=True, exist_ok=True)
-
-    result_file = local_svg_dir / f"{method_name}_{slide_id}_svgs.csv"
-    return result_file
+            reference_results[method_name] = top_genes
+            print(f"   -> [SUCCESS] Retrieved {len(top_genes)} genes for {method_name}.")
+        else:
+            print(f"   -> [WARNING] Could not retrieve reference SVGs for {slide_id} ({method_name}).")
+            reference_results[method_name] = []
+            
+    return reference_results    
