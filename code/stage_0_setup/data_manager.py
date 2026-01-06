@@ -161,7 +161,6 @@ def preprocess_adata(adata, min_cells=10, normalize=True, log_transform=True):
 
     return adata
   
-
 def get_reference_svgs(slide_id, methods_list, output_dir=ATLAS_RESULTS_DIR, top_n=100):
     """
     Fetches the SVG list from the Atlas (reference) for a list of methods.

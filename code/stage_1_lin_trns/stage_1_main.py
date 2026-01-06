@@ -71,12 +71,16 @@ def run_stability_test(slide_id=DEFAULT_SLIDE_ID,
     if save_results and os.path.exists(results_path):
         former_results = pd.read_csv(results_path)
 
+    # Support single string input just in case
+    if isinstance(methods_to_test, str):
+        methods_to_test = [methods_to_test]
+
     # Define Test Scenarios
     if scenarios is None:
         scenarios = generate_default_scenarios()
 
     # Skip calculation if all scenarios and methods are cached
-    if (len(check_scenario_cache(methods_to_test, config, former_results)) == 0 for config in scenarios):
+    if all(len(check_scenario_cache(methods_to_test, config, former_results)) == 0 for config in scenarios):
         print("[INFO] All scenarios and methods have cached results. Skipping stability test.")
         return former_results       
 
