@@ -15,6 +15,8 @@ from data_manager import (
     RESULTS_DIR 
 )
 from evaluation import run_svg_methods, calculate_jaccard_index
+from STimage_atlas_client import get_ground_truth_list
+
 
 # --- Default Configuration (Constants) ---
 DEFAULT_SLIDE_ID = "Human_Breast_Andersson_10142021_ST_A1"
@@ -80,6 +82,8 @@ def run_stage_0_pipeline(slide_id=DEFAULT_SLIDE_ID,
 
     # 4. Get Reference SVGs for Comparison
     reference_dict = get_reference_svgs(slide_id, methods_to_run, top_n=top_n)
+    ground_truth_df = get_ground_truth_list(slide_id, output_dir=RESULTS_DIR / "atlas_results")
+    gt_genes = list(ground_truth_df.gene[:top_n]) if not ground_truth_df.empty else []
 
     # 5. Run SVG detection methods
     svg_results_dict = run_svg_methods(adata, methods_to_run, slide_id, svg_results_dir)
@@ -107,14 +111,18 @@ def run_stage_0_pipeline(slide_id=DEFAULT_SLIDE_ID,
             continue
 
         # Calculate Metrics
-        jaccard, overlap = calculate_jaccard_index(ref_genes, local_genes)
+        jaccard_ref, overlap_ref = calculate_jaccard_index(ref_genes, local_genes)
+        jaccard_gt, overlap_gt = calculate_jaccard_index(gt_genes, local_genes)
         
         metrics[method] = {
-            "jaccard": jaccard,
-            "overlap_count": overlap
+            "jaccard_ref": jaccard_ref,
+            "overlap_ref": overlap_ref,
+            "jaccard_gt": jaccard_gt,
+            "overlap_gt": overlap_gt
         }
-        
-        print(f"[{method}] Jaccard: {jaccard:.4f} | Overlap: {overlap}/{top_n}")
+
+        print(f"[{method}] Jaccard: {jaccard_ref:.4f} | Overlap: {overlap_ref}/{top_n}")
+        print(f"          vs Ground Truth -> Jaccard: {jaccard_gt:.4f} | Overlap: {overlap_gt}/{top_n}")
 
     print("="*60)
 
