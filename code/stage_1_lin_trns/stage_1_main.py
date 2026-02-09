@@ -28,13 +28,16 @@ DEFAULT_METHODS = ["SpaGFT", "MoranI"]
 DEFAULT_TOP_N = 100
 
 
+
 # --- Main Stability Test Function ---
 def run_stability_test(slide_id=DEFAULT_SLIDE_ID,
                        tech=DEFAULT_TECH,
                        methods_to_test=DEFAULT_METHODS,
+                       graph_params=None,
                        scenarios=None,
                        spatial_key="spatial",
                        top_n=DEFAULT_TOP_N,
+                       use_saved_baseline=True,
                        save_results=False,
                        restrict_logs=True):
     """
@@ -50,8 +53,10 @@ def run_stability_test(slide_id=DEFAULT_SLIDE_ID,
                                        tech=tech,
                                        methods_to_test=methods_to_test,
                                        scenarios=scenarios,
+                                       graph_params=graph_params,
                                        spatial_key=spatial_key,
                                        top_n=top_n,
+                                       use_saved_baseline=use_saved_baseline,
                                        save_results=save_results,
                                        restrict_logs=False)
                     return func_output
@@ -99,8 +104,9 @@ def run_stability_test(slide_id=DEFAULT_SLIDE_ID,
     baseline_results_dict = run_svg_methods(
         adata_orig, 
         methods_list=methods_to_test, 
+        graph_params=graph_params,
         tissue_id=slide_id, 
-        results_dir=svg_results_dir
+        results_dir=svg_results_dir if use_saved_baseline else None,
         )
     
     for method in methods_to_test:
@@ -143,7 +149,11 @@ def run_stability_test(slide_id=DEFAULT_SLIDE_ID,
 
         for method in missing_methods:
             # Run Method on Transformed Data
-            trans_res_dict = run_svg_methods(adata_trans, methods_list=[method], tissue_id=slide_id, results_dir=temp_trans_dir)
+            trans_res_dict = run_svg_methods(adata_trans, 
+                                             methods_list=[method],
+                                             graph_params=graph_params,
+                                             tissue_id=slide_id, 
+                                             results_dir=temp_trans_dir)
             svg_trans_df = trans_res_dict[method]
                 
             # Calculate Metrics        
@@ -156,6 +166,7 @@ def run_stability_test(slide_id=DEFAULT_SLIDE_ID,
             scores_trans = svg_trans_df[score_col]
             
             common_genes = baseline_scores[method].index.intersection(scores_trans.index)
+            print(f"[INFO] Method: {method} | Common Genes for Spearman: {len(common_genes)}. Num of baseline Genes: {len(baseline_scores[method])}")
             spearman_val = np.nan
             if len(common_genes) > 0:
                 spearman_val, _ = spearmanr(baseline_scores[method][common_genes], scores_trans[common_genes])

@@ -13,7 +13,8 @@ import os
 from pathlib import Path
 import pandas as pd
 import sys
-sys.path.append("../../SpaGFT")  # Adjust path as needed to locate SpaGFT package
+from sklearn.neighbors import NearestNeighbors
+from statsmodels.stats.multitest import multipletests
 
 N_JOBS = 1  # Number of parallel jobs for computations
 
@@ -144,7 +145,7 @@ def robust_rank_aggregation(rank_df):
 # --- SVG Method Implementations ---
 
 
-def _run_spagft_local(adata):
+def _run_spagft_local(adata, graph_params=None):
     """
     Runs the local SpaGFT implementation on the provided AnnData object.
      Returns a DataFrame with SpaGFT results.
@@ -161,27 +162,40 @@ def _run_spagft_local(adata):
     if 'array_z' in adata_local.obs.columns:
         coord_columns.append('array_z') 
     
-    # Open os.devnull and redirect stdout
-    with open(os.devnull, 'w') as fnull:
-        with redirect_stdout(fnull):
-            try:
-                # determine the number of low-frequency FMs and high-frequency FMs
-                (ratio_low, ratio_high) = spg.gft.determine_frequency_ratio(adata_local,
-                                                                            ratio_neighbors=1,
-                                                                            spatial_info=coord_columns)
-                
-                # calculation
-                gene_df = spg.detect_svg(adata_local,
-                                        ratio_low_freq=ratio_low,
-                                        ratio_high_freq=ratio_high,
-                                        ratio_neighbors=1,
-                                        filter_peaks=True,
-                                        S=6)
-                # S determines the  sensitivity of kneedle algorithm
+    try:
+        # construct graph builder
+        if graph_params is None:
+            graph_builder = None
+        else:
+            graph_builder = spg.utils.SpatialGraphBuilder(
+                method=graph_params.get('method', 'knn'),
+                n_neighbors=graph_params.get('n_neighbors', 6),
+                radius=graph_params.get('radius', None),
+                weighting_scheme = graph_params.get('weighting_scheme', 'binary'),
+                kernel_width = graph_params.get('kernel_width', 1.0)
+                    )
+        
+        # determine the number of low-frequency FMs and high-frequency FMs
+        (ratio_low, ratio_high) = spg.gft.determine_frequency_ratio(adata_local,
+                                                                    ratio_neighbors=1,
+                                                                    spatial_info=coord_columns,
+                                                                    graph_builder=graph_builder)
+        
+        # calculation
+        gene_df = spg.detect_svg(adata_local,
+                                ratio_low_freq=ratio_low,
+                                ratio_high_freq=ratio_high,
+                                ratio_neighbors=1,
+                                filter_peaks=True,
+                                S=6,
+                                spatial_info=coord_columns,
+                                graph_builder=graph_builder,
+                                )
+        # S determines the  sensitivity of kneedle algorithm
 
-            except Exception as e:
-                raise e
-    
+    except Exception as e:
+        raise e
+
     
     # extract spaitally variable genes
     svg_df = gene_df[gene_df.cutoff_gft_score][gene_df.fdr < 0.05]
@@ -230,53 +244,152 @@ def _run_scanpy_morans(adata):
     
     return moran_df
 
-def _run_squidpy_morans(adata):
+def _run_squidpy_morans(adata, graph_params=None):
     """
     Calculates Moran's I using Squidpy to generate Z-scores.
+    Supports custom graph construction parameters to align with SpaGFT logic.
     Falls back to simple Scanpy implementation if Squidpy is missing (with warning).
     """
     print("[INFO] Running Moran's I analysis...")
     adata_calc = adata.copy()
     
-    # 1. Ensure spatial graph exists
-    if 'spatial_connectivities' not in adata_calc.obsp:
-        print("   -> Computing spatial neighbors...")
-        # Squidpy requires spatial key in obsm, usually 'spatial'
-        if 'spatial' not in adata_calc.obsm:
-             if 'array_row' in adata_calc.obs and 'array_col' in adata_calc.obs:
-                 if 'array_z' in adata_calc.obs.columns:
-                     adata_calc.obsm['spatial'] = adata_calc.obs[['array_row', 'array_col', 'array_z']].values
-                 else:
-                     adata_calc.obsm['spatial'] = adata_calc.obs[['array_row', 'array_col']].values
-        
-        sc.pp.neighbors(adata_calc, use_rep='spatial', n_neighbors=6)
+    # 0. Ensure spatial coordinates exist in obsm['spatial']
+    if 'spatial' not in adata_calc.obsm:
+        if 'array_row' in adata_calc.obs and 'array_col' in adata_calc.obs:
+            # Check for 3D or 2D
+            cols = ['array_row', 'array_col']
+            if 'array_z' in adata_calc.obs.columns:
+                cols.append('array_z')
+            adata_calc.obsm['spatial'] = adata_calc.obs[cols].values
+        else:
+            print("[WARN] Could not find spatial coordinates. Moran's I might fail.")
 
-    # 2. Run with Squidpy (Preferred: gives Z-score and P-value)
-    if sq is not None:
-        print("   -> Using Squidpy for permutation-based Z-scores...")
-        sq.gr.spatial_autocorr(
-            adata_calc, 
-            mode='moran', 
-            connectivity_key='connectivities',
-            n_perms=100, 
-            n_jobs=N_JOBS,  
-            genes=adata_calc.var_names
-        )
+    # Variable to track which connectivity key to use for Moran's I
+    # Defaulting to standard Scanpy output
+    target_conn_key = 'connectivities' 
+
+    # 1. Graph Construction Logic
+    if graph_params is not None and sq is not None:
+        print(f"[INFO] Building custom spatial graph using Squidpy: {graph_params['method']}")
         
-        # Squidpy saves results in adata.uns['moranI']
-        # Columns usually: 'I', 'pval_sim', 'z_score'
-        res_df = adata_calc.uns['moranI'].copy()
+        # Extract params with defaults
+        method = graph_params.get('method', 'knn')
+        n_neighs = graph_params.get('n_neighbors', 6)
+        radius = graph_params.get('radius', 'auto')
+        weighting = graph_params.get('weighting_scheme', 'binary') # 'binary' or 'gaussian_kernel'
+        sigma = graph_params.get('kernel_width', 1.0) # Sigma for RBF
         
-        # Rank by z_score descending (pval_z_sim ascending)
-        res_df = res_df.sort_values('pval_z_sim', ascending=True)
-        res_df['SVG_rank'] = range(1, len(res_df) + 1)
-        return res_df[['I', 'pval_z_sim']]
+        # -- A. Auto K and Radius Calculation --
+        if method == 'knn' and n_neighs == 'auto':
+            print("   -> Calculating auto-K as sqrt(N) / 2...")
+            n_neighs = int(np.ceil(np.sqrt(adata_calc.n_obs) / 2))
+            n_neighs = max(4, n_neighs)  # Ensure at least 4 neighbors
+            print(f"   -> Auto-K set to: {n_neighs}")
+        if method == 'knn' and n_neighs == 'all':
+            n_neighs = adata_calc.n_obs - 1  # All other points
+            print(f"   -> Using all points as neighbors: K={n_neighs}")
+        if method == 'radius' and radius == 'auto':
+            print("   -> Calculating auto-radius based on median 6-NN distance...")
+            coords = adata_calc.obsm['spatial']
+            # Safety check for small datasets
+            k_target = min(6, coords.shape[0] - 1)
+            if k_target > 0:
+                nbrs = NearestNeighbors(n_neighbors=k_target + 1).fit(coords)
+                dists, _ = nbrs.kneighbors(coords)
+                # Median distance to 6th neighbor * 1.5 buffer
+                radius = np.median(dists[:, k_target]) * 1.5
+                print(f"   -> Auto-radius set to: {radius:.4f}")
+            else:
+                radius = 1.0 # Fallback
+        
+        # -- B. Build Topology (Squidpy) --
+        # Note: squidpy.gr.spatial_neighbors outputs to 'spatial_connectivities'
+        if method == 'delaunay':
+            sq.gr.spatial_neighbors(adata_calc, coord_type="generic", delaunay=True)
+        elif method == 'radius':
+            sq.gr.spatial_neighbors(adata_calc, coord_type="generic", radius=float(radius), n_neighs=1)
+        else: # knn
+            sq.gr.spatial_neighbors(adata_calc, coord_type="generic", n_neighs=n_neighs)
+            
+        # Update key to point to Squidpy's output
+        target_conn_key = 'spatial_connectivities'
+
+        # -- C. Apply Weighting --
+        # If the user wants Gaussian weights, we override the binary connectivities
+        # with values derived from spatial_distances.
+        if weighting != 'binary' and 'spatial_distances' in adata_calc.obsp:
+            print(f"   -> Applying {weighting} weighting...")
+            
+            # Get the sparse distance matrix
+            dist_mtx = adata_calc.obsp['spatial_distances']
+            
+            # We copy the structure of distances to be our new weights
+            weighted_mtx = dist_mtx.copy()
+            
+            if weighting == 'inverse_distance':
+                # Apply Inverse Distance: W = 1 / d^2
+                # Note: We only operate on .data (the non-zero edges) to keep sparsity
+                # Avoid division by zero just in case
+                weighted_mtx.data = 1.0 / np.maximum(weighted_mtx.data ** 2, 1e-10)
+            
+            elif weighting == 'gaussian_kernel':
+                # Apply RBF kernel: W = exp(-d^2 / (2*sigma^2))
+                # Note: We only operate on .data (the non-zero edges) to keep sparsity
+                # Avoid division by zero just in case
+                denom = 2 * (sigma ** 2)
+                weighted_mtx.data = np.exp(-(weighted_mtx.data ** 2) / denom)
+            
+            # Overwrite the connectivity matrix used by Squidpy
+            adata_calc.obsp[target_conn_key] = weighted_mtx
 
     else:
-        # 3. Fallback to Scanpy (Not recommended for this specific comparison)
-        print("[WARN] Squidpy not found. Using basic Scanpy Moran's I (Raw Index only).")
-        print("       To get Z-scores matching the Atlas, please install squidpy: `pip install squidpy`")
+        # Fallback / Default Legacy Behavior
+        if 'spatial_connectivities' not in adata_calc.obsp and 'connectivities' not in adata_calc.obsp:
+            print("   -> Computing standard spatial neighbors (Scanpy KNN)...")
+            sc.pp.neighbors(adata_calc, use_rep='spatial', n_neighbors=6)
+            target_conn_key = 'connectivities'
+        elif 'spatial_connectivities' in adata_calc.obsp:
+             target_conn_key = 'spatial_connectivities'
+
+    # 2. Run Moran's I with Squidpy
+    if sq is not None:
+        print(f"   -> Using Squidpy for permutation-based Z-scores (key='{target_conn_key}')...")
         
+        try:
+            sq.gr.spatial_autocorr(
+                adata_calc, 
+                mode='moran', 
+                connectivity_key=target_conn_key,  # <--- DYNAMIC KEY HERE
+                n_perms=100, 
+                n_jobs=1, # Often safer to set 1 inside functions to avoid nesting issues
+                genes=adata_calc.var_names
+            )
+        except KeyError as e:
+            # Fallback if specific key is missing despite checks
+            print(f"[ERR] Failed to find connectivity key {target_conn_key}. trying default.")
+            sq.gr.spatial_autocorr(adata_calc, mode='moran', n_perms=100)
+
+        # Squidpy saves results in adata.uns['moranI']
+        if 'moranI' in adata_calc.uns:
+            res_df = adata_calc.uns['moranI'].copy()
+            # Calculate BH FDR on pval_z_sim
+            pvals = res_df['pval_z_sim'].values
+            _, fdrs, _, _ = multipletests(pvals, method='fdr_bh')
+            res_df['fdr_bh'] = fdrs
+            
+            # Rank by z_score descending (pval_z_sim ascending). Secondary sort by I descending.
+            res_df = res_df.sort_values(['I'], ascending=[False])
+            # Filter out non-significant genes and low I values
+            res_df = res_df[res_df['fdr_bh'] < 0.05]
+            res_df['SVG_rank'] = range(1, len(res_df) + 1)
+            return res_df[['I', 'pval_z_sim', 'fdr_bh', 'SVG_rank']]
+        else:
+            print("[WARN] Moran's I calculation produced no result.")
+            return None
+
+    else:
+        # 3. Fallback to Scanpy (Raw Index only)
+        print("[WARN] Squidpy not found. Using basic Scanpy Moran's I.")
         return _run_scanpy_morans(adata_calc)
     
 
@@ -289,7 +402,7 @@ SVG_METHODS_REGISTRY = {
     "MoranI": _run_squidpy_morans,
 }
 
-def run_svg_methods(adata, methods_list, tissue_id, results_dir):
+def run_svg_methods(adata, methods_list, tissue_id, results_dir, graph_params=None):
     """
     Wrapper function to run multiple SVG detection methods.
     
@@ -302,7 +415,6 @@ def run_svg_methods(adata, methods_list, tissue_id, results_dir):
         dict: { method_name: DataFrame }
     """
     results = {}
-    results_dir = Path(results_dir)
     
     # Support single string input just in case
     if isinstance(methods_list, str):
@@ -310,17 +422,20 @@ def run_svg_methods(adata, methods_list, tissue_id, results_dir):
 
     # Create the svg_results subdirectory if passed directly, 
     # but usually passed path should already be complete.
-    if not results_dir.exists():
-        results_dir.mkdir(parents=True, exist_ok=True)
+    if results_dir is not None:
+        results_dir = Path(results_dir)
+        if not results_dir.exists():
+            results_dir.mkdir(parents=True, exist_ok=True)
     
     for method_name in methods_list:
         if method_name not in SVG_METHODS_REGISTRY:
             print(f"[WARN] Method '{method_name}' is not registered. Skipping.")
             continue
 
-        file_path = results_dir / f"{method_name}_{tissue_id}_SVGs.csv"
+        if results_dir is not None:
+            file_path = results_dir / f"{method_name}_{tissue_id}_SVGs.csv"
 
-        if file_path.exists():
+        if results_dir and file_path.exists():
             print(f"[INFO] Loading existing results for {method_name}...")
             results[method_name] = pd.read_csv(file_path, index_col=0)
         else:
@@ -330,12 +445,13 @@ def run_svg_methods(adata, methods_list, tissue_id, results_dir):
 
             try:
                 func = SVG_METHODS_REGISTRY[method_name]
-                df = func(adata)
+                df = func(adata, graph_params=graph_params)
                 
                 # Save results
-                df.to_csv(file_path, index=True)
-                print(f"[INFO] Saved {method_name} results to {file_path.name}")
                 results[method_name] = df
+                if results_dir is not None:
+                    df.to_csv(file_path, index=True)
+                    print(f"[INFO] Saved {method_name} results to {file_path.name}")
                 
             except NotImplementedError:
                 print(f"[WARN] {method_name} is not implemented yet. Skipping.")
