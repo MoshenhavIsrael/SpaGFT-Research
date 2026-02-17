@@ -70,8 +70,20 @@ def run_stability_test(slide_id=DEFAULT_SLIDE_ID,
     ensure_directories()
     svg_results_dir = SVG_RESULTS_DIR
     stability_results_dir = STABILITY_RESULTS_DIR
+    graph_method = graph_params.get('method', 'knn') if graph_params else 'knn'
+    print(f"[INFO] Graph Construction Method: {graph_method}")
+    if graph_method == 'radius':
+        graph_prm = graph_params.get('radius', 'auto')
+        print(f"       Radius: {graph_prm}")
+    elif graph_method == 'knn':
+        graph_prm = graph_params.get('n_neighbors', 6)
+        print(f"       KNN Neighbors: {graph_prm}")
+    graph_param_string = f"{graph_method}_{graph_prm}" if graph_prm else graph_method
+    if graph_params.get('weighting_scheme', 'binary') != 'binary':
+        graph_param_string += f"_{graph_params['weighting_scheme']}"
+
     results = []
-    results_path = os.path.join(stability_results_dir, f"stability_{slide_id}.csv")
+    results_path = os.path.join(stability_results_dir, f"stability_{slide_id}_{graph_param_string}.csv")
     former_results = pd.DataFrame()
     if save_results and os.path.exists(results_path):
         former_results = pd.read_csv(results_path)

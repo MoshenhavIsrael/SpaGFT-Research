@@ -17,7 +17,7 @@ from sklearn.neighbors import NearestNeighbors
 from statsmodels.stats.multitest import multipletests
 
 N_JOBS = 1  # Number of parallel jobs for computations
-
+RANK_MORAN_I_BY_Z = True  # Whether to rank Moran's I results by Z-score (if False, ranks by raw I value)
 
 # --- Utility Functions ---
 
@@ -377,10 +377,14 @@ def _run_squidpy_morans(adata, graph_params=None):
             _, fdrs, _, _ = multipletests(pvals, method='fdr_bh')
             res_df['fdr_bh'] = fdrs
             
-            # Rank by z_score descending (pval_z_sim ascending). Secondary sort by I descending.
-            res_df = res_df.sort_values(['I'], ascending=[False])
-            # Filter out non-significant genes and low I values
-            res_df = res_df[res_df['fdr_bh'] < 0.05]
+            # Rank by z_score descending (pval_z_sim ascending). If RANK_MORAN_I_BY_Z is False, rank by raw I value instead.
+            if RANK_MORAN_I_BY_Z:
+                res_df = res_df.sort_values(['pval_z_sim'], ascending=[True])
+            else:
+                res_df = res_df.sort_values(['I'], ascending=[False])
+                # Filter out non-significant genes 
+                res_df = res_df[res_df['fdr_bh'] < 0.05]
+            
             res_df['SVG_rank'] = range(1, len(res_df) + 1)
             return res_df[['I', 'pval_z_sim', 'fdr_bh', 'SVG_rank']]
         else:
