@@ -47,6 +47,13 @@ This project is designed to work in tandem with a modified fork of the SpaGFT li
     # Install another requirements
     pip install huggingface_hub
     ```   
+3. **Install jupyter (optional):**
+   Note [jupyter](https://jupyter.org/) is recommend for interactive usage. It can be installed and configured by
+
+   ```bash
+   conda install jupyter
+   python -m ipykernel install --user --name=m_spagft_env --display-name=m_spagft_env
+   ```
 
 ### Running the Analysis
 
